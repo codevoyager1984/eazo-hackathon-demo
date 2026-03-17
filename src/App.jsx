@@ -336,7 +336,7 @@ function HackerCard({ user, card, verified, onRegenerate, regenerating }) {
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  // phases: init | bridge-loading | verifying | generating | done | manual-form | error
+  // phases: init | bridge-loading | verifying | authenticated | generating | done | manual-form | error
   const [phase, setPhase] = useState("init");
   const [user, setUser] = useState(null);
   const [card, setCard] = useState(null);
@@ -418,11 +418,8 @@ export default function App() {
       setVerified(true);
       pendingUserData.current = userData;
 
-      setPhase("generating");
-      const cardData = await generateCard(userData);
-      setCard(cardData);
-      addLog(`[info] Card generated ✓`);
-      setPhase("done");
+      addLog(`[info] Ready to generate card`);
+      setPhase("authenticated");
     } catch (err) {
       console.error("[eazo-bridge] error:", err);
       addLog(`[warn] Bridge failed: ${err.message}`);
@@ -465,6 +462,22 @@ export default function App() {
       setPhase("error");
     } finally {
       setFormSubmitting(false);
+    }
+  };
+
+  const handleGenerateCard = async () => {
+    if (!pendingUserData.current) return;
+    setPhase("generating");
+    addLog("> Generating your hacker card...");
+    try {
+      const cardData = await generateCard(pendingUserData.current);
+      setCard(cardData);
+      addLog(`[info] Card generated ✓`);
+      setPhase("done");
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Card generation failed");
+      setPhase("error");
     }
   };
 
@@ -529,6 +542,38 @@ export default function App() {
         {/* Manual form */}
         {phase === "manual-form" && (
           <ManualForm onSubmit={handleManualSubmit} submitting={formSubmitting} />
+        )}
+
+        {/* Authenticated — show user info + generate button */}
+        {phase === "authenticated" && user && (
+          <div className="w-full max-w-sm mx-auto animate-card-in">
+            <div className="bg-[#0D1117] border border-white/8 rounded-2xl p-6 space-y-5">
+              <div className="flex items-center gap-4">
+                <Avatar src={user.avatarUrl} name={user.nickname || user.email} size={64} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-white font-bold text-lg truncate">{user.nickname || "Hacker"}</div>
+                  {user.email && <div className="text-white/40 text-sm truncate mt-0.5">{user.email}</div>}
+                  <div className="flex items-center gap-1.5 mt-2 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded-full w-fit">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="text-emerald-400 text-[10px] font-bold uppercase tracking-wider">Verified</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-white/5 pt-4">
+                <p className="text-white/50 text-sm mb-4 leading-relaxed">
+                  Ready to generate your AI-powered developer identity card?
+                </p>
+                <button
+                  onClick={handleGenerateCard}
+                  className="w-full py-3.5 rounded-xl text-sm font-bold uppercase tracking-wider transition-all active:scale-[0.98]"
+                  style={{ background: "linear-gradient(135deg, #F97316, #8B5CF6)", color: "#fff" }}
+                >
+                  Generate My Card ⚡
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Error state */}
