@@ -200,7 +200,7 @@ function ManualForm({ onSubmit, submitting }) {
 }
 
 // ─── Hacker Card ─────────────────────────────────────────────────────────────
-function HackerCard({ user, card, verified, onRegenerate, regenerating }) {
+function HackerCard({ user, card, verified, onRegenerate, regenerating, onClose }) {
   const [downloading, setDownloading] = useState(false);
   const cardRef = useRef(null);
 
@@ -232,7 +232,21 @@ function HackerCard({ user, card, verified, onRegenerate, regenerating }) {
   };
 
   return (
-    <div className="animate-card-in w-full max-w-md mx-auto">
+    <div className="animate-card-in w-full max-w-md mx-auto relative">
+      {/* Close button - positioned absolutely outside the card */}
+      {onClose && (
+        <button
+          onClick={onClose}
+          className="absolute -top-2 -right-2 z-10 w-8 h-8 rounded-full bg-stone-800 border border-white/10 flex items-center justify-center text-white/60 hover:text-white hover:border-white/20 transition-all"
+          aria-label="Close"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      )}
+      
       {/* Gradient border wrapper */}
       <div className="p-px rounded-2xl" style={{ background: "linear-gradient(135deg, #F97316, #8B5CF6, #06B6D4)" }}>
         <div ref={cardRef} className="bg-[#0D1117] rounded-2xl overflow-hidden">
@@ -345,6 +359,7 @@ export default function App() {
   const [regenerating, setRegenerating] = useState(false);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [verified, setVerified] = useState(false);
+  const [userDescription, setUserDescription] = useState("");
   // userData saved for regenerate when using manual form
   const pendingUserData = useRef(null);
 
@@ -469,8 +484,12 @@ export default function App() {
     if (!pendingUserData.current) return;
     setPhase("generating");
     addLog("> Generating your hacker card...");
+    if (userDescription.trim()) {
+      addLog(`[info] Using custom description: ${userDescription.slice(0, 50)}...`);
+    }
     try {
-      const cardData = await generateCard(pendingUserData.current);
+      const userData = { ...pendingUserData.current, description: userDescription.trim() };
+      const cardData = await generateCard(userData);
       setCard(cardData);
       addLog(`[info] Card generated ✓`);
       setPhase("done");
@@ -492,6 +511,12 @@ export default function App() {
     } finally {
       setRegenerating(false);
     }
+  };
+
+  const handleCloseCard = () => {
+    setCard(null);
+    setUserDescription(""); // Reset description when closing
+    setPhase("authenticated");
   };
 
   useEffect(() => {
@@ -539,41 +564,56 @@ export default function App() {
           </div>
         )}
 
-        {/* Manual form */}
-        {phase === "manual-form" && (
-          <ManualForm onSubmit={handleManualSubmit} submitting={formSubmitting} />
-        )}
-
-        {/* Authenticated — show user info + generate button */}
+        {/* Authenticated — show terminal + user card + generate button */}
         {phase === "authenticated" && user && (
-          <div className="w-full max-w-sm mx-auto animate-card-in">
-            <div className="bg-[#0D1117] border border-white/8 rounded-2xl p-6 space-y-5">
-              <div className="flex items-center gap-4">
-                <Avatar src={user.avatarUrl} name={user.nickname || user.email} size={64} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-white font-bold text-lg truncate">{user.nickname || "Hacker"}</div>
-                  {user.email && <div className="text-white/40 text-sm truncate mt-0.5">{user.email}</div>}
-                  <div className="flex items-center gap-1.5 mt-2 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded-full w-fit">
+          <div className="w-full flex flex-col items-center gap-6">
+            <TerminalLog lines={logLines} phase={phase} />
+            
+            <div className="w-full max-w-sm mx-auto animate-card-in">
+              <div className="bg-[#0D1117] border border-white/10 rounded-xl overflow-hidden">
+                <div className="px-5 py-4 flex items-center gap-3 border-b border-white/5">
+                  <Avatar src={user.avatarUrl} name={user.nickname || user.email} size={48} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-white font-bold text-sm truncate">{user.nickname || "Hacker"}</div>
+                    {user.email && <div className="text-white/40 text-xs truncate mt-0.5">{user.email}</div>}
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded-full">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                     <span className="text-emerald-400 text-[10px] font-bold uppercase tracking-wider">Verified</span>
                   </div>
                 </div>
-              </div>
-
-              <div className="border-t border-white/5 pt-4">
-                <p className="text-white/50 text-sm mb-4 leading-relaxed">
-                  Ready to generate your AI-powered developer identity card?
-                </p>
-                <button
-                  onClick={handleGenerateCard}
-                  className="w-full py-3.5 rounded-xl text-sm font-bold uppercase tracking-wider transition-all active:scale-[0.98]"
-                  style={{ background: "linear-gradient(135deg, #F97316, #8B5CF6)", color: "#fff" }}
-                >
-                  Generate My Card ⚡
-                </button>
+                <div className="px-5 py-4 space-y-3">
+                  <div>
+                    <label className="block text-xs text-white/40 mb-2">
+                      Describe yourself <span className="text-white/20">(optional)</span>
+                    </label>
+                    <textarea
+                      value={userDescription}
+                      onChange={(e) => setUserDescription(e.target.value)}
+                      placeholder="e.g. Full-stack dev, loves Rust, commits at 2am, tabs > spaces..."
+                      rows={3}
+                      className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-[#F97316]/60 transition-colors resize-none leading-relaxed"
+                    />
+                    <p className="mt-1.5 text-[10px] text-white/20">
+                      The more you share, the more personalized the card.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleGenerateCard}
+                    className="w-full py-3 rounded-xl text-sm font-bold uppercase tracking-wider transition-all active:scale-[0.98]"
+                    style={{ background: "linear-gradient(135deg, #F97316, #8B5CF6)", color: "#fff" }}
+                  >
+                    Generate My Card ⚡
+                  </button>
+                </div>
               </div>
             </div>
           </div>
+        )}
+
+        {/* Manual form */}
+        {phase === "manual-form" && (
+          <ManualForm onSubmit={handleManualSubmit} submitting={formSubmitting} />
         )}
 
         {/* Error state */}
@@ -601,6 +641,7 @@ export default function App() {
             verified={verified}
             onRegenerate={handleRegenerate}
             regenerating={regenerating}
+            onClose={verified ? handleCloseCard : null}
           />
         )}
       </div>
